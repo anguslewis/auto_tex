@@ -41,6 +41,7 @@ import os
 import re
 from natsort import natsorted, ns
 import pandas as pd
+from math import ceil
 
 # tex preamble
 preamble=r"""%% Created with a script written by Angus Lewis.
@@ -174,6 +175,7 @@ def add_single(path):
 \bigskip{}
 \begin{centering}
 """ + excel_to_tex(path) + """
+
 \end{centering}
 \end{table}
 """
@@ -232,48 +234,64 @@ for path in files_path:
                     included.append(pot_child)
         child_list=natsorted(child_list)
         child_num=len(child_list)
+        # if number of figures is too big for one page, split into multiple lists
+        if child_num>10:
+            split_n = ceil(child_num/10)
+            n_per_page = ceil(child_num/split_n)
+        else:
+            split_n = 1
+            n_per_page = child_num
         # set dimensions for subfloats
-        if child_num==1 or child_num==2:
+        if n_per_page==1 or n_per_page==2:
             width='.5'
             col=1
-        elif child_num<7:
+        elif n_per_page<7:
             width=".5"
             col=2
-        elif child_num==9:
+        elif n_per_page==9:
             width=".33"
             col=3
-        elif child_num==10:
-            width=".3"
-            col=2
-        elif child_num==8 or child_num==7:
+        elif n_per_page==10:
+            width=".25"
+            col=3
+        elif n_per_page==8 or n_per_page==7:
             width=".35"
             col=2
         else:
             width=".25"
             col=3
-        # start either table or figure float
-        if ext in ['.eps','.png']:
-            float_type = 'figure'
-        else:
-            float_type = 'table'
-        float_code = start_float(par_name, float_type)
-        # iterate over child figures
-        newline_test=0
-        for child in child_list:
-            newline_test=newline_test+1
-            float_code = float_code + add_subfloat(child, width)
-            # test if new column should start, if so newline and counter goes to 0
-            if newline_test==col:
-                float_code=float_code+'\n\n'
-                newline_test=0
-        float_code = float_code + end_float()
+        child_counter = 0
+        for page in range(split_n):
+            # start either table or figure float
+            if ext in ['.eps','.png']:
+                float_type = 'figure'
+            else:
+                float_type = 'table'
+            if split_n==1:
+                float_code = start_float(par_name, float_type)
+            else:
+                float_code = start_float(par_name + "_"+str(page+1), float_type)
+            # iterate over child figures
+            newline_test=0
+            for child in child_list[child_counter:child_counter+n_per_page]:
+                newline_test=newline_test+1
+                float_code = float_code + add_subfloat(child, width)
+                # test if new column should start, if so newline and counter goes to 0
+                if newline_test==col:
+                    float_code=float_code+'\n\n'
+                    newline_test=0
+            float_code = float_code + end_float()
+            # Add tex code from iteration of loop
+            body = body + float_code
+            child_counter = child_counter + n_per_page
 
     # for single items
     else:
         float_code = add_single(path)
+        # Add tex code from iteration of loop
+        body = body + float_code
 
     # Add tex code from iteration of loop
-    body = body + float_code
     included.append(file)
 
 # End document
